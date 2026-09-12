@@ -5,7 +5,7 @@ Arabic customer visit form for IQ Distribution Syria, using the original logo an
 - All fields are optional. Save an empty report or a partially completed visit.
 - Reopen saved reports, edit them, or start a new report.
 - Automatic browser-local draft saving and history, including shop photos.
-- Direct PDF downloads with correctly shaped Arabic text and page breaks.
+- Direct two-page A4 PDF downloads with correctly shaped Arabic text and automatic fitting.
 - Bundled Cairo Regular, Medium and Bold, used consistently for the page and PDF exports.
 - No build tools, external scripts, or backend required.
 
@@ -32,3 +32,7 @@ Reports and photos are stored in IndexedDB in the visitor's browser. They are no
 The project bundles Cairo Regular, Medium and Bold directly from the supplied Cairo.zip. The webpage and PDF exports both use this bundled Cairo family, so installed system fonts cannot override it. PDF text is rendered at high resolution to preserve Arabic shaping; it is not selectable text.
 
 Third-party licenses are included in `dist`. The supplied logo remains the property of its owner.
+
+## PDF page limit
+
+Every report exports as two A4 pages: visit details and display materials on page 1; product scores and representative relationships on page 2. Compact paired fields save space. Text and spacing automatically shrink on a page with long answers, preserving all content without truncation. Very long notes can produce smaller print.

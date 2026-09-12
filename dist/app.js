@@ -42,16 +42,76 @@ $('#removePhoto').onclick=()=>{photo='';$('#photo').value='';showPhoto();changed
 $('#locate').onclick=()=>{if(!navigator.geolocation){notify('تحديد الموقع غير متاح. الصق رابط Google Maps يدوياً.',true);return;}const rev=revision;$('#locate').disabled=true;navigator.geolocation.getCurrentPosition(pos=>{if(rev===revision){$('#gps').value=`https://maps.google.com/?q=${pos.coords.latitude},${pos.coords.longitude}`;changed();notify('تم إدخال الموقع الحالي.');}$('#locate').disabled=false;},()=>{notify('تعذّر تحديد الموقع. اسمح بالوصول إلى الموقع أو الصق رابط Google Maps يدوياً.',true);$('#locate').disabled=false;},{enableHighAccuracy:true,timeout:15000,maximumAge:60000});};
 function loadImage(src){return new Promise((resolve,reject)=>{const i=new Image();i.onload=()=>resolve(i);i.onerror=reject;i.src=src;});}
 function download(blob,name){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}
-async function createPDF(record){await Promise.all([document.fonts.load('24px "Cairo"'),document.fonts.load('bold 24px "Cairo"')]);await document.fonts.ready;const {PDFDocument}=PDFLib;const pdf=await PDFDocument.create();pdf.setTitle('Customer visit report');pdf.setProducer('IQ Distribution - Customer visits');const logo=await loadImage('logo.png');const W=1240,H=1754,M=80,B=1640;let canvas,ctx,y,pageNo=0;
- function text(txt,x,yy,size=25,color='#233d50',bold=false,align='right'){ctx.font=`${bold?'bold ':''}${size}px "Cairo",Tahoma,Arial,sans-serif`;ctx.fillStyle=color;ctx.textAlign=align;ctx.direction=align==='right'?'rtl':'ltr';ctx.fillText(txt,x,yy);}
- async function flush(){if(!canvas)return;text(`IQ DISTRIBUTION · SYRIA`,M,H-50,17,'#688091',false,'left');text(String(pageNo),W-M,H-50,19,'#688091');const image=await pdf.embedJpg(canvas.toDataURL('image/jpeg',.94));const p=pdf.addPage([595.28,841.89]);p.drawImage(image,{x:0,y:0,width:595.28,height:841.89});}
- async function newPage(){await flush();pageNo++;canvas=document.createElement('canvas');canvas.width=W;canvas.height=H;ctx=canvas.getContext('2d');ctx.fillStyle='white';ctx.fillRect(0,0,W,H);ctx.fillStyle='#1679ac';ctx.fillRect(0,0,W,12);ctx.drawImage(logo,W-M-100,45,100,100);text('نموذج زيارة وتقييم الزبون',W-M-125,87,32,'#203e54',true);text(`${record.data.customer||'—'}  |  ${record.data.date||'—'}`,W-M-125,126,21,'#627b8c');ctx.fillStyle='#dce6ec';ctx.fillRect(M,165,W-2*M,2);y=205;}
- async function ensure(h){if(y+h>B)await newPage();}
- function wrap(value,size=24,max=W-2*M-32){ctx.font=`${size}px "Cairo",Tahoma,Arial,sans-serif`;const lines=[];for(const paragraph of String(value).split('\n')){let line='';for(const word of paragraph.split(/\s+/)){if(ctx.measureText((line?line+' ':'')+word).width>max&&line){lines.push(line);line='';}if(ctx.measureText(word).width>max){for(const char of word){if(ctx.measureText(line+char).width>max){lines.push(line);line='';}line+=char;}}else line+=(line?' ':'')+word;}lines.push(line||' ');}return lines;}
- await newPage();for(let si=0;si<sections.length;si++){const s=sections[si];await ensure(145);ctx.fillStyle='#eaf3f9';ctx.fillRect(M,y-27,W-2*M,58);text(`${si+1}. ${s.title}`,W-M-18,y+11,27,'#146993',true);y+=65;
- for(const f of s.fields){const [id,label,type]=f,value=record.data[id];if(type==='photo'){if(value){const photoImage=await loadImage(value);const h=Math.min(320,photoImage.height*(W-2*M)/photoImage.width);const w=h*photoImage.width/photoImage.height;await ensure(h+75);text(label,W-M,y,23,'#536e80',true);y+=20;ctx.drawImage(photoImage,W-M-w,y,w,h);y+=h+35;}else{await ensure(95);text(label,W-M,y,22,'#58768a',true);y+=35;text('لم تُرفق صورة',W-M,y,24);y+=50;}continue;}
- if(['rating','grade','yesno'].includes(type)){const lines=wrap(label,23,W-2*M-165);await ensure(lines.length*34+24);for(const l of lines){text(l,W-M,y,23);y+=34;}const val=String(value??'—')+(type==='rating'&&value!==undefined?' / 5':'');text(val,M+20,y-34,24,'#146993',true,'left');ctx.fillStyle='#e5ebf0';ctx.fillRect(M,y-12,W-2*M,1);y+=15;
- }else{const lines=wrap(value||'—');await ensure(100);text(label,W-M,y,22,'#58768a',true);y+=35;for(const l of lines){await ensure(43);const isURL=id==='gps';text(l,W-M,y,isURL?20:24,'#203b4e',false,'right');y+=36;}y+=19;}}y+=15;}await flush();return new Blob([await pdf.save()],{type:'application/pdf'});}
+async function createPDF(record){
+ await Promise.all([document.fonts.load('24px "Cairo"'),document.fonts.load('bold 24px "Cairo"')]);await document.fonts.ready;
+ const {PDFDocument}=PDFLib,pdf=await PDFDocument.create();pdf.setTitle('Customer visit report');pdf.setProducer('IQ Distribution - Customer visits');
+ const logo=await loadImage('logo.png'),shop=record.data.photo?await loadImage(record.data.photo):null;
+ const W=1240,H=1754,M=72,TOP=190,BOTTOM=1630,CW=W-2*M;
+ const measure=document.createElement('canvas').getContext('2d');
+ const font=(size,bold=false)=>`${bold?'bold ':''}${size}px "Cairo",Tahoma,Arial,sans-serif`;
+ const answer=f=>{const value=record.data[f[0]];return value===undefined||value===null||String(value).trim()===''?'—':String(value)+(f[2]==='rating'?' / 5':'');};
+ function wrap(value,size,width,bold=false){measure.font=font(size,bold);const out=[];
+  for(const paragraph of String(value).split('\n')){let line='';for(const word of paragraph.split(/\s+/)){
+   if(measure.measureText((line?line+' ':'')+word).width>width&&line){out.push(line);line='';}
+   if(measure.measureText(word).width>width){for(const ch of word){if(line&&measure.measureText(line+ch).width>width){out.push(line);line='';}line+=ch;}}
+   else line+=(line?' ':'')+word;
+  }out.push(line||' ');}return out;
+ }
+ function layout(sectionNumbers,scale){const ops=[];let y=0;const gap=24*scale,half=(CW-gap)/2;
+  const text=(value,x,yy,size,color='#233d50',bold=false,align='right')=>ops.push({kind:'text',value,x,y:yy,size,color,bold,align});
+  function lines(value,x,yy,width,size,color,bold=false){for(const line of wrap(value,size,width,bold)){text(line,x,yy+size*.95,size,color,bold);yy+=size*1.5;}return yy;}
+  function field(f,x,yy,width){const [id,label,type]=f,pad=10*scale;
+   if(['grade','yesno','rating'].includes(type)){const labelSize=22*scale,valSize=23*scale,valueWidth=100*scale;
+    const wrapped=wrap(label,labelSize,width-valueWidth-pad);const h=Math.max(wrapped.length*labelSize*1.5,valSize*1.5)+14*scale;
+    let ly=yy;for(const line of wrapped){text(line,x+width,ly+labelSize,labelSize);ly+=labelSize*1.5;}
+    text(answer(f),x+pad,yy+valSize,valSize,'#146993',true,'left');ops.push({kind:'rect',x,y:yy+h-5*scale,w:width,h:1,color:'#e2eaf0'});return yy+h;
+   }
+   let next=lines(label,x+width,yy,width,22*scale,'#537186',true)+3*scale;
+   next=lines(answer(f),x+width,next,width,id==='gps'?21*scale:24*scale,'#203b4e');return next+16*scale;
+  }
+  function full(f){y=field(f,M,y,CW);}
+  function pair(a,b){const right=field(a,M+half+gap,y,half),left=b?field(b,M,y,half):y;y=Math.max(right,left);}
+  function photo(){y=lines('صورة المحل',M+CW,y,CW,22*scale,'#537186',true)+8*scale;
+   if(!shop){y=lines('لم تُرفق صورة',M+CW,y,CW,23*scale,'#203b4e')+15*scale;return;}
+   const maxH=210*scale,maxW=CW,imageScale=Math.min(maxW/shop.width,maxH/shop.height),w=shop.width*imageScale,h=shop.height*imageScale;
+   ops.push({kind:'image',image:shop,x:M+CW-w,y,w,h});y+=h+20*scale;
+  }
+  for(const si of sectionNumbers){const section=sections[si];const headSize=26*scale,headLines=wrap(`${si+1}. ${section.title}`,headSize,CW-32*scale,true);const headHeight=Math.max(49*scale,headLines.length*headSize*1.5+12*scale);
+   ops.push({kind:'rect',x:M,y,w:CW,h:headHeight,color:'#eaf3f9'});let headY=y+7*scale;
+   for(const line of headLines){text(line,M+CW-16*scale,headY+headSize,headSize,'#146993',true);headY+=headSize*1.5;}
+   y+=headHeight+15*scale;
+   const fs=section.fields;
+   if(si===0){pair(fs[0],fs[1]);full(fs[2]);}
+   if(si===1){pair(fs[0],fs[1]);full(fs[2]);photo();pair(fs[4],fs[5]);}
+   if(si===2){for(let i=0;i<8;i+=2)pair(fs[i],fs[i+1]);full(fs[8]);}
+   if(si===3){for(let i=0;i<3;i++)full(fs[i]);for(let i=3;i<14;i+=2)pair(fs[i],i+1<14?fs[i+1]:null);full(fs[14]);}
+   if(si===4){for(const f of fs)full(f);}
+   y+=18*scale;
+  }
+  return {ops,height:y,scale};
+ }
+ function fit(indices){const available=BOTTOM-TOP;let result=layout(indices,1);if(result.height<=available)return result;
+  let hi=1,lo=.5;while(layout(indices,lo).height>available)lo/=2;
+  for(let i=0;i<18;i++){const mid=(lo+hi)/2;if(layout(indices,mid).height<=available)lo=mid;else hi=mid;}
+  return layout(indices,lo);
+ }
+ const pages=[fit([0,1,2]),fit([3,4])];
+ for(let i=0;i<pages.length;i++){const canvas=document.createElement('canvas');canvas.width=W;canvas.height=H;const ctx=canvas.getContext('2d');
+  function paintText(value,x,y,size,color='#233d50',bold=false,align='right'){ctx.font=font(size,bold);ctx.fillStyle=color;ctx.textAlign=align;ctx.direction=align==='right'?'rtl':'ltr';ctx.fillText(value,x,y);}
+  ctx.fillStyle='white';ctx.fillRect(0,0,W,H);ctx.fillStyle='#1679ac';ctx.fillRect(0,0,W,12);ctx.drawImage(logo,W-M-96,38,96,96);
+  paintText('نموذج زيارة وتقييم الزبون',W-M-120,78,32,'#203e54',true);
+  paintText(i===0?'بيانات الزيارة والمواد الدعائية':'تقييم المنتجات والعلاقة مع المندوبين',W-M-120,118,22,'#627b8c');
+  ctx.fillStyle='#dce6ec';ctx.fillRect(M,153,CW,2);
+  for(const op of pages[i].ops){if(op.kind==='text')paintText(op.value,op.x,TOP+op.y,op.size,op.color,op.bold,op.align);
+   else if(op.kind==='rect'){ctx.fillStyle=op.color;ctx.fillRect(op.x,TOP+op.y,op.w,op.h);}
+   else ctx.drawImage(op.image,op.x,TOP+op.y,op.w,op.h);
+  }
+  ctx.fillStyle='#dce6ec';ctx.fillRect(M,H-88,CW,1);
+  paintText('IQ DISTRIBUTION · SYRIA',M,H-48,17,'#688091',false,'left');paintText(`الصفحة ${i+1} من 2`,W-M,H-48,19,'#688091');
+  const image=await pdf.embedJpg(canvas.toDataURL('image/jpeg',.96));pdf.addPage([595.28,841.89]).drawImage(image,{x:0,y:0,width:595.28,height:841.89});
+ }
+ return new Blob([await pdf.save()],{type:'application/pdf'});
+}
 async function exportPDF(record,button){const old=button?.textContent;if(button){button.disabled=true;button.textContent='جارٍ تجهيز PDF…';}try{const blob=await createPDF(record);const name=`زيارة-${record.data.customer||'زبون'}-${record.data.date||'تقرير'}`.replace(/[<>:"/\\|?*\x00-\x1f]/g,'-');download(blob,`${name}.pdf`);notify(db?'تم تجهيز PDF وتنزيله. راجع التنزيلات في متصفحك.':'تم تنزيل PDF. التخزين غير متاح، لذلك لم يُحفظ التقرير في السجل.',!db);}catch(e){notify('تعذّر إنشاء PDF. إجاباتك ما زالت في النموذج؛ حاول مجدداً.',true);}finally{if(button){button.disabled=false;button.textContent=old;}}}
 $('#pdf').onclick=async()=>{const b=$('#pdf');b.disabled=true;try{const record=await saveReport();if(record)await exportPDF(record,b);}finally{b.disabled=false;}};
 async function init(){try{db=await new Promise((resolve,reject)=>{const request=indexedDB.open('iq-customer-visits-v1',1);request.onupgradeneeded=()=>{request.result.createObjectStore('reports',{keyPath:'id'});request.result.createObjectStore('draft',{keyPath:'id'});};request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);request.onblocked=()=>reject(Error('blocked'));});const saved=await tx('reports','readonly',s=>s.getAll());records=saved||[];const draft=await tx('draft','readonly',s=>s.get('current'));if(draft){applyData(draft.data);activeId=draft.activeId;dirty=draft.dirty;$('#draftState').textContent='تم استرجاع المسودة';if(activeId)$('#editorTitle').textContent='تعديل تقرير محفوظ';}renderHistory();}catch{notify('التخزين غير متاح في هذا المتصفح. يمكنك تعبئة النموذج وتنزيل PDF، لكن لن تُحفظ المسودة أو التقارير.',true);}updateProgress();}

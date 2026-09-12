@@ -28,4 +28,4 @@ No user responses or photos are sent to any server by this application. No exter
 pdf-lib is bundled under the MIT license; see dist/pdf-lib.LICENSE.
 
 ARABIC FONT
-Arabic consistently uses bundled Noto Sans Arabic Regular and Bold (the Arabic font named in the supplied ZIP), registered as Visit Arabic to prevent installed fonts from overriding it. Arabic letter spacing is normal throughout the page and PDF exports use the same font.
+Cairo Regular, Medium and Bold are bundled from the supplied Cairo.zip. The webpage and PDF exports both use Cairo directly. Arabic letter spacing is normal throughout the page. See dist/Cairo-OFL.txt for the font license.

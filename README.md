@@ -6,7 +6,7 @@ Arabic customer visit form for IQ Distribution Syria, using the original logo an
 - Reopen saved reports, edit them, or start a new report.
 - Automatic browser-local draft saving and history, including shop photos.
 - Direct PDF downloads with correctly shaped Arabic text and page breaks.
-- Bundled Noto Sans Arabic Regular and Bold, used consistently for the page and PDF exports.
+- Bundled Cairo Regular, Medium and Bold, used consistently for the page and PDF exports.
 - No build tools, external scripts, or backend required.
 
 ## Connect to Netlify
@@ -29,6 +29,6 @@ Reports and photos are stored in IndexedDB in the visitor's browser. They are no
 
 ## Fonts and PDF
 
-The reference ZIP contains a translation script specifying font fallbacks, not a font file. This project bundles its named Arabic font, Noto Sans Arabic, and registers it as `Visit Arabic` so installed system fonts cannot override it. PDF text is rendered at high resolution to preserve Arabic shaping; it is not selectable text.
+The project bundles Cairo Regular, Medium and Bold directly from the supplied Cairo.zip. The webpage and PDF exports both use this bundled Cairo family, so installed system fonts cannot override it. PDF text is rendered at high resolution to preserve Arabic shaping; it is not selectable text.
 
 Third-party licenses are included in `dist`. The supplied logo remains the property of its owner.

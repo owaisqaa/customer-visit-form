@@ -32,3 +32,6 @@ Cairo Regular, Medium and Bold are bundled from the supplied Cairo.zip. The webp
 
 PDF PAGE LIMIT
 Every report exports as two A4 pages: visit details and display materials on page 1; product scores and representative relationships on page 2. Compact paired fields save space. Text and spacing automatically shrink on a page with long answers, preserving all content without truncation. Very long notes can produce smaller print.
+
+SAFARI PDF SAVING
+After PDF generation, tap Save or share PDF, then Save to Files on iPhone. A separate Download PDF link is also available and preserves the form tab. Return to page closes the ready dialog without changing the report.

@@ -41,7 +41,42 @@ $('#photo').onchange=async e=>{const file=e.target.files[0];if(!file)return;cons
 $('#removePhoto').onclick=()=>{photo='';$('#photo').value='';showPhoto();changed();};
 $('#locate').onclick=()=>{if(!navigator.geolocation){notify('تحديد الموقع غير متاح. الصق رابط Google Maps يدوياً.',true);return;}const rev=revision;$('#locate').disabled=true;navigator.geolocation.getCurrentPosition(pos=>{if(rev===revision){$('#gps').value=`https://maps.google.com/?q=${pos.coords.latitude},${pos.coords.longitude}`;changed();notify('تم إدخال الموقع الحالي.');}$('#locate').disabled=false;},()=>{notify('تعذّر تحديد الموقع. اسمح بالوصول إلى الموقع أو الصق رابط Google Maps يدوياً.',true);$('#locate').disabled=false;},{enableHighAccuracy:true,timeout:15000,maximumAge:60000});};
 function loadImage(src){return new Promise((resolve,reject)=>{const i=new Image();i.onload=()=>resolve(i);i.onerror=reject;i.src=src;});}
-function download(blob,name){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}
+// Keep the form tab alive: PDF generation must never navigate it to a blob URL.
+// The second tap supplies fresh user activation for iOS's native file share sheet.
+let pendingPDF=null,pdfExportBusy=false;
+function showPDFDownload(blob,name){
+ const file=typeof File==='function'?new File([blob],name,{type:'application/pdf'}):null;
+ pendingPDF={blob,file,name,url:null};
+ let canShare=false;try{canShare=Boolean(file&&navigator.share&&navigator.canShare?.({files:[file]}));}catch{}
+ $('#pdfFileName').textContent=name;
+ $('#pdfShare').hidden=!canShare;$('#pdfShare').disabled=false;
+ $('#pdfDeliveryHint').textContent=canShare?'على iPhone: اضغط «حفظ أو مشاركة PDF»، ثم اختر «حفظ في الملفات». سيبقى النموذج مفتوحاً.':'اضغط «تنزيل PDF». إذا فُتح التقرير في تبويب منفصل، يمكنك إغلاقه للعودة إلى هذه الصفحة.';
+ $('#pdfDeliveryStatus').textContent='';
+ const link=$('#pdfDownload');link.href='#';link.download=name;link.target='_blank';link.rel='noopener';
+ if(!$('#pdfDelivery').open)$('#pdfDelivery').showModal();
+}
+$('#pdfShare').onclick=async()=>{
+ const selected=pendingPDF;if(!selected?.file)return;
+ const button=$('#pdfShare');button.disabled=true;$('#pdfDeliveryStatus').textContent='';
+ try{
+  // Call share before any await: Safari requires an active user gesture.
+  await navigator.share({files:[selected.file]});
+  if(pendingPDF===selected)$('#pdfDeliveryStatus').textContent='يمكنك الرجوع إلى الصفحة أو حفظ نسخة أخرى.';
+ }catch(error){
+  if(pendingPDF===selected)$('#pdfDeliveryStatus').textContent=error?.name==='AbortError'?'أُغلقت نافذة المشاركة. يمكنك المحاولة مجدداً.':'تعذّرت المشاركة. استخدم «تنزيل PDF» أدناه، ثم احفظ الملف من عارض PDF.';
+ }finally{button.disabled=false;}
+};
+$('#pdfDownload').onclick=event=>{
+ const selected=pendingPDF;if(!selected){event.preventDefault();return;}
+ if(!selected.url)selected.url=URL.createObjectURL(selected.blob);
+ // Safari may keep reading this URL in another tab. Do not revoke it on a
+ // timer, dialog close, or pagehide (which may place this page in the BFCache).
+ // The browser releases it when this document is finally destroyed.
+ event.currentTarget.href=selected.url;
+ $('#pdfDeliveryStatus').textContent='إذا فُتح التقرير في تبويب آخر، أغلق ذلك التبويب للعودة إلى النموذج.';
+};
+$('#pdfBack').onclick=()=>$('#pdfDelivery').close();
+$('#pdfDelivery').addEventListener('close',()=>{pendingPDF=null;$('#pdfDownload').removeAttribute('href');});
 async function createPDF(record){
  await Promise.all([document.fonts.load('24px "Cairo"'),document.fonts.load('bold 24px "Cairo"')]);await document.fonts.ready;
  const {PDFDocument}=PDFLib,pdf=await PDFDocument.create();pdf.setTitle('Customer visit report');pdf.setProducer('IQ Distribution - Customer visits');
@@ -112,7 +147,18 @@ async function createPDF(record){
  }
  return new Blob([await pdf.save()],{type:'application/pdf'});
 }
-async function exportPDF(record,button){const old=button?.textContent;if(button){button.disabled=true;button.textContent='جارٍ تجهيز PDF…';}try{const blob=await createPDF(record);const name=`زيارة-${record.data.customer||'زبون'}-${record.data.date||'تقرير'}`.replace(/[<>:"/\\|?*\x00-\x1f]/g,'-');download(blob,`${name}.pdf`);notify(db?'تم تجهيز PDF وتنزيله. راجع التنزيلات في متصفحك.':'تم تنزيل PDF. التخزين غير متاح، لذلك لم يُحفظ التقرير في السجل.',!db);}catch(e){notify('تعذّر إنشاء PDF. إجاباتك ما زالت في النموذج؛ حاول مجدداً.',true);}finally{if(button){button.disabled=false;button.textContent=old;}}}
+async function exportPDF(record,button){
+ if(pdfExportBusy){notify('يجري تجهيز تقرير PDF. انتظر حتى ينتهي.');return;}
+ pdfExportBusy=true;const old=button?.textContent;
+ if(button){button.disabled=true;button.textContent='جارٍ تجهيز PDF…';}
+ try{
+  const blob=await createPDF(record);
+  const name=`زيارة-${record.data.customer||'زبون'}-${record.data.date||'تقرير'}`.replace(/[<>:"/\\|?*\x00-\x1f]/g,'-');
+  showPDFDownload(blob,`${name}.pdf`);
+  notify(db?'تقرير PDF جاهز. اختر طريقة حفظه من النافذة.':'تقرير PDF جاهز. التخزين غير متاح؛ احفظ نسخة من الملف قبل مغادرة الصفحة.',!db);
+ }catch(error){notify('تعذّر إنشاء PDF. إجاباتك ما زالت في النموذج؛ حاول مجدداً.',true);}
+ finally{pdfExportBusy=false;if(button){button.disabled=false;button.textContent=old;}}
+}
 $('#pdf').onclick=async()=>{const b=$('#pdf');b.disabled=true;try{const record=await saveReport();if(record)await exportPDF(record,b);}finally{b.disabled=false;}};
 async function init(){try{db=await new Promise((resolve,reject)=>{const request=indexedDB.open('iq-customer-visits-v1',1);request.onupgradeneeded=()=>{request.result.createObjectStore('reports',{keyPath:'id'});request.result.createObjectStore('draft',{keyPath:'id'});};request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);request.onblocked=()=>reject(Error('blocked'));});const saved=await tx('reports','readonly',s=>s.getAll());records=saved||[];const draft=await tx('draft','readonly',s=>s.get('current'));if(draft){applyData(draft.data);activeId=draft.activeId;dirty=draft.dirty;$('#draftState').textContent='تم استرجاع المسودة';if(activeId)$('#editorTitle').textContent='تعديل تقرير محفوظ';}renderHistory();}catch{notify('التخزين غير متاح في هذا المتصفح. يمكنك تعبئة النموذج وتنزيل PDF، لكن لن تُحفظ المسودة أو التقارير.',true);}updateProgress();}
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&dirty){clearTimeout(timer);writeDraft().catch(()=>{});}});

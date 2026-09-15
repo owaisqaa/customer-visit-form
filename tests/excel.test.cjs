@@ -34,40 +34,60 @@ function table(xml) {
     return number ? Number(number[1]) : (cell[1].match(/<t[^>]*>(.*?)<\/t>/s)?.[1] || '');
   }));
 }
-test('summary counts every field, includes zero in averages, and distinguishes percentage bases', async () => {
-  const allFields = fields.concat([['display', 'آرمة', 'yesno'], ['grade', 'تصنيف', 'grade'], ['notes', 'ملاحظات', 'textarea']]);
+test('insights rank products, include zero ratings, and exclude blanks from percentages', async () => {
+  const allFields = [
+    ...fields, ['product0', 'بربيكان', 'rating'], ['product1', 'راني', 'rating'], ['product2', 'بايسن', 'rating'],
+    ['knows', 'معرفة الأصناف', 'rating'], ['offered', 'عرض الأصناف', 'rating'], ['placement', 'موقع المنتجات', 'rating'],
+    ['display', 'آرمة', 'yesno'], ['grade', 'تصنيف', 'grade'], ['locationRating', 'جودة الموقع', 'grade'],
+    ['notes', 'ملاحظات المنتجات', 'textarea'], ['repNotes', 'ملاحظات المندوب', 'textarea']
+  ];
   const records = [
-    { id: 'a', data: { customer: '=unsafe', score: '0', display: 'نعم', grade: 'A', notes: 'ملاحظة' }, photoPath: 'private/a' },
-    { id: 'b', data: { customer: '=unsafe', score: '5', display: 'لا', grade: 'B' } },
-    { id: 'c', data: { score: 'invalid', display: 'نعم' } },
+    { id: 'a', data: { customer: '=unsafe', date: '2026-09-15', product0: '0', product1: '5', knows: '0', display: 'نعم', grade: 'A', notes: '=HYPERLINK("evil") & ملاحظة', repNotes: 'تعليق المندوب' } },
+    { id: 'b', data: { product0: '5', product1: '3', knows: '5', display: 'لا', grade: 'B' } },
+    { id: 'c', data: { product0: 'invalid', display: 'نعم' } },
     { id: 'd', data: {} }
   ];
   const zip = await JSZip.loadAsync(await (await context.api.build(records, allFields, 'https://example.com')).arrayBuffer());
   const workbook = await zip.file('xl/workbook.xml').async('string');
-  assert(workbook.indexOf('name="الملخص"') < workbook.indexOf('name="الزيارات"'));
+  assert(workbook.indexOf('name="الملخص"') < workbook.indexOf('name="ملاحظات الزبائن"'));
+  assert(workbook.indexOf('name="ملاحظات الزبائن"') < workbook.indexOf('name="الزيارات"'));
   const summary = await zip.file('xl/worksheets/sheet2.xml').async('string'), rows = table(summary);
-  assert.equal(rows[2][2], 4);
-  const completion = rows.slice(8, 8 + allFields.length);
-  assert.deepEqual(completion.map(r => r[0]), allFields.map(f => f[1]));
-  assert.deepEqual(completion.find(r => r[0] === 'التقييم').slice(1), [3, 1, 0.75, 2, 2.5, 0.5, 5]);
-  assert.deepEqual(completion.find(r => r[0] === 'صورة المحل').slice(1, 4), [1, 3, 0.25]);
-  assert.deepEqual(completion.find(r => r[0] === 'ملاحظات').slice(1, 4), [1, 3, 0.25]);
-  assert.deepEqual(rows.find(r => r[0] === 'آرمة' && r[1] === 'نعم').slice(2), [2, 2 / 3, 0.5]);
-  assert.deepEqual(rows.find(r => r[0] === 'آرمة' && r[1] === 'بلا إجابة').slice(2), [1, '', 0.25]);
-  for (const [id, label] of allFields) {
-    const breakdown = rows.filter(r => r[0] === label && typeof r[1] === 'string');
-    assert.equal(breakdown.reduce((n, r) => n + r[2], 0), 4, label);
-    assert.equal(breakdown.reduce((n, r) => n + r[4], 0), 1, label);
-  }
-  assert(!summary.includes('<f>=unsafe'));
-  assert(summary.includes('=unsafe'));
+  assert.equal(rows[2][1], 4);
+  const ratingRows = rows.filter(r => ['بربيكان', 'راني', 'بايسن'].includes(r[0]));
+  assert.deepEqual(ratingRows, [['راني', 4, 2], ['بربيكان', 2.5, 2], ['بايسن', '—', 0]]);
+  assert.deepEqual(rows.find(r => r[0] === 'معرفة الأصناف'), ['معرفة الأصناف', 2.5, 2]);
+  assert.deepEqual(rows.find(r => r[0] === 'آرمة'), ['آرمة', 2 / 3, 1 / 3, 3]);
+  assert.deepEqual(rows.find(r => r[0] === 'تصنيف'), ['تصنيف', 0.5, 0.5, 0, 0, 2]);
+  assert.deepEqual(rows.find(r => r[0] === 'جودة الموقع'), ['جودة الموقع', '—', '—', '—', '—', 0]);
+  for (const removed of ['اكتمال', 'بلا إجابة', 'مجموع الدرجات', 'توزيع الإجابات', 'المتوسط كنسبة']) assert(!summary.includes(removed), removed);
+  const feedback = await zip.file('xl/worksheets/sheet3.xml').async('string');
+  const comments = table(feedback).slice(3);
+  assert.equal(comments.length, 2);
+  assert.equal(comments[0][0], '=unsafe');
+  assert.equal(comments[0][1], 46280);
+  assert.equal(comments[0][2], 'ملاحظات المنتجات');
+  assert.match(feedback, /&amp;/);
+  assert(!feedback.includes('<f>'));
+  assert.equal(comments[1][3], 'تعليق المندوب');
+  assert.match(summary, /AVERAGE\(/);
 });
-test('empty exports and entirely unanswered ratings never produce invalid statistics', async () => {
+test('all app rating, promotional and grade fields appear once in the insight tables', async () => {
+  const app = fs.readFileSync(path.join(__dirname, '../dist/app.js'), 'utf8');
+  const allFields = vm.runInNewContext(app.slice(app.indexOf('const sections='), app.indexOf('const fields=')) + ';sections.flatMap(s=>s.fields)');
+  const zip = await JSZip.loadAsync(await (await context.api.build([{ id: 'empty', data: {} }], allFields, 'https://example.com')).arrayBuffer());
+  const summary = table(await zip.file('xl/worksheets/sheet2.xml').async('string'));
+  for (const [id, label, type] of allFields) if (['rating', 'yesno', 'grade'].includes(type)) {
+    assert.equal(summary.filter(r => r[0] === label).length, 1, id);
+  }
+  assert(summary.length < 55, 'Main summary should remain compact');
+});
+test('empty exports and entirely unanswered questions show no misleading zero averages', async () => {
   for (const records of [[], [{ id: 'empty', data: {} }]]) {
     const zip = await JSZip.loadAsync(await (await context.api.build(records, fields, 'https://example.com')).arrayBuffer());
     const summary = await zip.file('xl/worksheets/sheet2.xml').async('string');
     assert(!/NaN|Infinity|#DIV\/0/.test(summary));
-    assert.equal(table(summary).find(r => r[0] === 'التقييم')[5], '');
+    assert.deepEqual(table(summary).find(r => r[0] === 'التقييم'), ['التقييم', '—', 0]);
+    assert.match(await zip.file('xl/worksheets/sheet3.xml').async('string'), /لا توجد ملاحظات/);
   }
 });
 test('export uses narrow columns and compact rows while keeping long wrapped notes', async () => {

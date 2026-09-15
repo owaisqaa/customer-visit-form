@@ -46,7 +46,9 @@ Ranges use the form's visit date, include both endpoints, and exclude undated vi
 
 The workbook contains all 38 fields plus ID, created time, and updated time (UTC). Ratings are numeric, preserving blank versus zero. Dates are sortable Excel dates. Text is literal, never interpreted as formulas. Photo links open the visit page and require login; they do not expose public storage URLs or expire like signed URLs.
 
-Long notes remain in their cells and can be read by expanding the row or using the formula bar. Values beyond Excel's 32767-character cell limit produce an error rather than silent truncation. Cairo is declared in workbook styles; Excel needs Cairo installed to display it. The webpage and PDF bundle the font.
+The first tab, `الملخص`, summarizes exactly the exported visits (all or the selected date range). It includes completion for every field; answer counts and percentages for ratings, grades, yes/no and text categories; and rating averages out of 5 and as a percentage. Blank answers are separate; numeric zero counts in averages. Invalid rating values remain visible in the distribution but are excluded from averages. Notes, GPS and photos summarize presence only. Counts and category lists are a snapshot of the export; regenerate the workbook after changing visits. Percentage and average cells contain formulas with cached results.
+
+The `الزيارات` tab uses compact widths, wrapped text, a frozen header, filters and content-based row heights. Long notes remain intact; rows are capped at 90 points for browsing and can be expanded or read in the formula bar. Values beyond Excel's 32767-character cell limit produce an error rather than silent truncation. Cairo is declared in workbook styles; Excel needs Cairo installed to display it. The webpage and PDF bundle the font.
 
 Old/replaced photos remain private in Storage. Deleting a visit removes its database record but does not purge images, avoiding cross-resource deletion races. The owner can manage unused files/backups in Supabase. Excel is not a full backup of photo files. Monitor Supabase plan and storage limits.
 

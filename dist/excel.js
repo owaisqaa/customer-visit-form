@@ -57,9 +57,13 @@ const VisitExcel = (() => {
     const ratingSection = (title, items) => {
       if (!items.length) return;
       summary.heading(title);
-      summary.header(['المؤشر / المنتج', 'المتوسط من 5', 'عدد الردود']);
-      for (const s of items) summary.add([s.label, s.count ? { formula: 'IFERROR(AVERAGE(' + s.range + '),0)', value: s.average } : '—',
-        { formula: 'COUNT(' + s.range + ')', value: s.count }], [0, 6, 0]);
+      summary.header(['المؤشر / المنتج', 'المتوسط من 5', 'نسبة التقييم %', 'عدد الردود']);
+      for (const s of items) {
+        const n = summary.nextRow();
+        summary.add([s.label, s.count ? { formula: 'IFERROR(AVERAGE(' + s.range + '),0)', value: s.average } : '—',
+          s.count ? { formula: 'B' + n + '/5', value: s.average / 5 } : '—',
+          { formula: 'COUNT(' + s.range + ')', value: s.count }], [0, 6, 5, 0]);
+      }
     };
     const products = stats.filter(s => s.type === 'rating' && /^product\d+$/.test(s.id));
     products.sort((a, b) => (b.average ?? -1) - (a.average ?? -1));
@@ -96,6 +100,7 @@ const VisitExcel = (() => {
     }
     summary.line('التعليقات المكتوبة مع اسم الزبون وتاريخ الزيارة في صفحة «ملاحظات الزبائن».');
     summary.line('— تعني عدم وجود ردود صالحة. ترتيب المنتجات يعكس وقت التصدير؛ أعد التصدير لتحديثه.');
+    summary.line('نسبة التقييم = المتوسط ÷ 5؛ مثلاً 4 من 5 = 80%. هذه ليست نسبة الزبائن.');
     const feedback = sheetBuilder([24, 12, 30, 60], 3);
     feedback.heading('Leaders Of Grandness — ملاحظات الزبائن');
     feedback.line('تعليقات الزبائن كما أُدخلت. وسّع الصف لقراءة الملاحظات الطويلة كاملة.');

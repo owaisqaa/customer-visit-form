@@ -54,8 +54,9 @@ test('insights rank products, include zero ratings, and exclude blanks from perc
   const summary = await zip.file('xl/worksheets/sheet2.xml').async('string'), rows = table(summary);
   assert.equal(rows[2][1], 4);
   const ratingRows = rows.filter(r => ['بربيكان', 'راني', 'بايسن'].includes(r[0]));
-  assert.deepEqual(ratingRows, [['راني', 4, 2], ['بربيكان', 2.5, 2], ['بايسن', '—', 0]]);
-  assert.deepEqual(rows.find(r => r[0] === 'معرفة الأصناف'), ['معرفة الأصناف', 2.5, 2]);
+  assert.deepEqual(ratingRows, [['راني', 4, 0.8, 2], ['بربيكان', 2.5, 0.5, 2], ['بايسن', '—', '—', 0]]);
+  assert.deepEqual(rows.find(r => r[0] === 'معرفة الأصناف'), ['معرفة الأصناف', 2.5, 0.5, 2]);
+  assert.match(summary, /s="5"><f>B\d+\/5<\/f><v>0\.8<\/v>/);
   assert.deepEqual(rows.find(r => r[0] === 'آرمة'), ['آرمة', 2 / 3, 1 / 3, 3]);
   assert.deepEqual(rows.find(r => r[0] === 'تصنيف'), ['تصنيف', 0.5, 0.5, 0, 0, 2]);
   assert.deepEqual(rows.find(r => r[0] === 'جودة الموقع'), ['جودة الموقع', '—', '—', '—', '—', 0]);
@@ -86,7 +87,7 @@ test('empty exports and entirely unanswered questions show no misleading zero av
     const zip = await JSZip.loadAsync(await (await context.api.build(records, fields, 'https://example.com')).arrayBuffer());
     const summary = await zip.file('xl/worksheets/sheet2.xml').async('string');
     assert(!/NaN|Infinity|#DIV\/0/.test(summary));
-    assert.deepEqual(table(summary).find(r => r[0] === 'التقييم'), ['التقييم', '—', 0]);
+    assert.deepEqual(table(summary).find(r => r[0] === 'التقييم'), ['التقييم', '—', '—', 0]);
     assert.match(await zip.file('xl/worksheets/sheet3.xml').async('string'), /لا توجد ملاحظات/);
   }
 });

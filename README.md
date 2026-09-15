@@ -1,6 +1,6 @@
 # Customer visit reports
 
-Arabic form for IQ Distribution Syria using the original logo, all 38 optional questions, and bundled Cairo font.
+Arabic form for Leaders Of Grandness using the original logo, all 38 optional questions, and bundled Cairo font.
 
 - One shared email/password login backed by Supabase Auth.
 - Database-backed history, private shop photos, and browser-local drafts.

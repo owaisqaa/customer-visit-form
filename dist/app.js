@@ -78,7 +78,7 @@ $('#pdfBack').onclick=()=>$('#pdfDelivery').close();
 $('#pdfDelivery').addEventListener('close',()=>{pendingPDF=null;$('#pdfDownload').removeAttribute('href');});
 async function createPDF(record){
  await Promise.all([document.fonts.load('24px "Cairo"'),document.fonts.load('bold 24px "Cairo"')]);await document.fonts.ready;
- const {PDFDocument}=PDFLib,pdf=await PDFDocument.create();pdf.setTitle('Customer visit report');pdf.setProducer('IQ Distribution - Customer visits');
+ const {PDFDocument}=PDFLib,pdf=await PDFDocument.create();pdf.setTitle('Customer visit report');pdf.setProducer('Leaders Of Grandness - Customer visits');
  const logo=await loadImage('logo.png'),shop=record.data.photo?await loadImage(record.data.photo):null;
  const W=1240,H=1754,M=72,TOP=190,BOTTOM=1630,CW=W-2*M;
  const measure=document.createElement('canvas').getContext('2d');
@@ -141,7 +141,7 @@ async function createPDF(record){
    else ctx.drawImage(op.image,op.x,TOP+op.y,op.w,op.h);
   }
   ctx.fillStyle='#dce6ec';ctx.fillRect(M,H-88,CW,1);
-  paintText('IQ DISTRIBUTION · SYRIA',M,H-48,17,'#688091',false,'left');paintText(`الصفحة ${i+1} من 2`,W-M,H-48,19,'#688091');
+  paintText('Leaders Of Grandness · SYRIA',M,H-48,17,'#688091',false,'left');paintText(`الصفحة ${i+1} من 2`,W-M,H-48,19,'#688091');
   const image=await pdf.embedJpg(canvas.toDataURL('image/jpeg',.96));pdf.addPage([595.28,841.89]).drawImage(image,{x:0,y:0,width:595.28,height:841.89});
  }
  return new Blob([await pdf.save()],{type:'application/pdf'});
